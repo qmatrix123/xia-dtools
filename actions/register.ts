@@ -1,23 +1,35 @@
-"use server";
+'use server'
 
-import * as z from "zod";
-// import bcrypt from "bcryptjs";
+import * as z from 'zod'
+import bcrypt from 'bcryptjs'
 
-// import { db } from "@/lib/db";
-import { RegisterSchema } from "@/schemas";
-// import { getUserByEmail } from "@/data/user";
-// import { sendVerificationEmail } from "@/lib/mail";
-// import { generateVerificationToken } from "@/lib/tokens";
+import { RegisterSchema } from '@/schemas'
+import { db } from '@/db/drizzle'
+import { users } from '@/db/schema'
+import { eq } from 'drizzle-orm'
+import { getUserByEmail } from '@/data/user'
 
 export const register = async (values: z.infer<typeof RegisterSchema>) => {
-  const validatedFields = RegisterSchema.safeParse(values);
+    const validatedFields = RegisterSchema.safeParse(values)
 
-  if (!validatedFields.success) {
-    return { error: "Invalid fields!" };
-  }
+    if (!validatedFields.success) {
+        return { error: 'Invalid fields!' }
+    }
 
-  console.log(validatedFields.data)
+    const { email, password, name } = validatedFields.data
+    const hashedPassword = await bcrypt.hash(password, 10)
 
+    const existingUser = await getUserByEmail(email)
 
-  return { success: "Confirmation email sent!" };
-};
+    if (existingUser) {
+        return { error: 'Email already in use!' }
+    }
+
+    await db.insert(users).values({
+        name,
+        email,
+        password: hashedPassword
+    })
+
+    return { success: 'User created!' }
+}
